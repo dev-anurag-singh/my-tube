@@ -5,6 +5,8 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { cache } from 'react';
 import superjson from 'superjson';
+import { rateLimit } from '@/lib/rate-limit';
+
 export const createTRPCContext = cache(async () => {
   const { userId } = await auth();
   return { clerkUserId: userId };
@@ -38,6 +40,12 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
 
   if (!user) {
     throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+
+  const { success } = await rateLimit.limit(user.id);
+
+  if (!success) {
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS' });
   }
 
   return next({
